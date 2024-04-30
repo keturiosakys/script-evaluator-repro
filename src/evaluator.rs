@@ -45,7 +45,7 @@ impl Runtime {
             &std::env::current_dir().context("failed to get cwd")?,
         )?;
 
-        let template_module = self
+        let script_module_id = self
             .js
             .load_main_es_module_from_code(&script_url, template)
             .await?;
@@ -54,31 +54,31 @@ impl Runtime {
             .js
             .run_event_loop(PollEventLoopOptions::default())
             .await?;
-        let _ = self.js.mod_evaluate(template_module).await?;
+        let _ = self.js.mod_evaluate(script_module_id).await?;
 
-        let template_module = self.js.get_module_namespace(template_module)?;
-        let template_scope = &mut self.js.handle_scope();
-        let template_module = v8::Local::<v8::Object>::new(template_scope, template_module);
+        let script_module = self.js.get_module_namespace(script_module_id)?;
+        let scope = &mut self.js.handle_scope();
+        let script_module = v8::Local::<v8::Object>::new(scope, script_module);
 
         let template_key =
-            v8::String::new(template_scope, "default").expect("Couldn't create a v8 string block");
-        let template_function = template_module
-            .get(template_scope, template_key.into())
+            v8::String::new(scope, "default").expect("Couldn't create a v8 string block");
+        let template_function = script_module
+            .get(scope, template_key.into())
             .expect("Couldn't find a default export");
         let template_fn = v8::Local::<v8::Function>::try_from(template_function)?;
 
         let params = if let Some(params) = params {
-            deno_core::serde_v8::to_v8(template_scope, params)?
+            deno_core::serde_v8::to_v8(scope, params)?
         } else {
-            v8::undefined(template_scope).into()
+            v8::undefined(scope).into()
         };
 
-        let undefined = v8::undefined(template_scope);
+        let undefined = v8::undefined(scope);
 
-        let Some(res) = template_fn.call(template_scope, undefined.into(), &[params]) else {
+        let Some(res) = template_fn.call(scope, undefined.into(), &[params]) else {
             anyhow::bail!("Failed to evaluate script")
         };
 
-        Ok(from_v8(template_scope, res)?)
+        Ok(from_v8(scope, res)?)
     }
 }
