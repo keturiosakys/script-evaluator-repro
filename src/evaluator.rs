@@ -37,7 +37,7 @@ impl Runtime {
 
     pub async fn evaluate(
         &mut self,
-        template: String,
+        script: String,
         params: Option<std::collections::HashMap<String, serde_json::Value>>,
     ) -> Result<ScriptReturn, anyhow::Error> {
         let script_url = deno_core::resolve_path(
@@ -47,7 +47,7 @@ impl Runtime {
 
         let script_module_id = self
             .js
-            .load_main_es_module_from_code(&script_url, template)
+            .load_main_es_module_from_code(&script_url, script)
             .await?;
 
         let _ = self
@@ -60,12 +60,12 @@ impl Runtime {
         let scope = &mut self.js.handle_scope();
         let script_module = v8::Local::<v8::Object>::new(scope, script_module);
 
-        let template_key =
+        let script_key =
             v8::String::new(scope, "default").expect("Couldn't create a v8 string block");
-        let template_function = script_module
-            .get(scope, template_key.into())
+        let script_function = script_module
+            .get(scope, script_key.into())
             .expect("Couldn't find a default export");
-        let template_fn = v8::Local::<v8::Function>::try_from(template_function)?;
+        let script_fn = v8::Local::<v8::Function>::try_from(script_function)?;
 
         let params = if let Some(params) = params {
             deno_core::serde_v8::to_v8(scope, params)?
@@ -75,7 +75,7 @@ impl Runtime {
 
         let undefined = v8::undefined(scope);
 
-        let Some(res) = template_fn.call(scope, undefined.into(), &[params]) else {
+        let Some(res) = script_fn.call(scope, undefined.into(), &[params]) else {
             anyhow::bail!("Failed to evaluate script")
         };
 
